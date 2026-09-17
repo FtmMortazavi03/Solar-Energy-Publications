@@ -28,6 +28,7 @@ ENV/
 
 # Outputs
 outputs/figures/*.png
+outputs/poster/*.png
 outputs/tables/*.csv
 logs/*.log
 
