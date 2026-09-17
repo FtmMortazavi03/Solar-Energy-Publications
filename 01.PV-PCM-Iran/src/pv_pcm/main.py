@@ -34,8 +34,8 @@ def run_city(city_name, output_dir):
 
     Returns
     -------
-    list of lists
-        Rows for the summary table.
+    tuple
+        (rows, best_pcm_name, best_energy, e_no_pcm)
     """
     print(f"\nProcessing {city_name}...")
     rows = []
@@ -50,7 +50,41 @@ def run_city(city_name, output_dir):
     e_dusty = compute_energy(P_dusty, t)
     rows.append([city_name, 'No PCM (Dusty)', max(T_dusty), e_dusty])
 
-    # Scenario 3: All PCM types (clean), and find the best
+    # ==========================================
+    # Scenario 3A: SIMPLE PCM (no fins)
+    # ==========================================
+    best_simple_pcm = None
+    best_simple_energy = -1.0
+    best_simple_T = None
+    best_simple_P = None
+
+    for pcm_name in cfg.PCM_PROPERTIES.keys():
+        _, T_pcm, P_pcm = simulate_pv(city_name, pcm_name=pcm_name, finned=False)
+        e_pcm = compute_energy(P_pcm, t)
+        rows.append([city_name, f'{pcm_name} Simple (Clean)', max(T_pcm), e_pcm])
+
+        if e_pcm > best_simple_energy:
+            best_simple_energy = e_pcm
+            best_simple_pcm = pcm_name
+            best_simple_T = T_pcm
+            best_simple_P = P_pcm
+
+    # Plot simple PCM results
+    fig_path_simple = os.path.join(
+        output_dir, f'{city_name.replace(" ", "_")}_Simple_PCM_No_Fins.png'
+    )
+    plot_city_results(
+        city_name, t,
+        T_no_pcm, P_no_pcm,
+        T_dusty, P_dusty,
+        best_simple_T, best_simple_P,
+        best_simple_pcm, fig_path_simple,
+        scenario_label="Simple PCM (No Fins) Performance"
+    )
+
+    # ==========================================
+    # Scenario 3B: FINNED PCM
+    # ==========================================
     best_pcm_name = None
     best_energy = -1.0
     best_T = None
@@ -59,7 +93,7 @@ def run_city(city_name, output_dir):
     for pcm_name in cfg.PCM_PROPERTIES.keys():
         _, T_pcm, P_pcm = simulate_pv(city_name, pcm_name=pcm_name, finned=True)
         e_pcm = compute_energy(P_pcm, t)
-        rows.append([city_name, f'{pcm_name} (Clean)', max(T_pcm), e_pcm])
+        rows.append([city_name, f'{pcm_name} Finned (Clean)', max(T_pcm), e_pcm])
 
         if e_pcm > best_energy:
             best_energy = e_pcm
@@ -67,14 +101,17 @@ def run_city(city_name, output_dir):
             best_T = T_pcm
             best_P = P_pcm
 
-    # Plot results for this city
-    fig_path = os.path.join(output_dir, f'{city_name.replace(" ", "_")}_PCM_Analysis.png')
+    # Plot finned PCM results
+    fig_path_finned = os.path.join(
+        output_dir, f'{city_name.replace(" ", "_")}_PCM_Analysis.png'
+    )
     plot_city_results(
         city_name, t,
         T_no_pcm, P_no_pcm,
         T_dusty, P_dusty,
         best_T, best_P,
-        best_pcm_name, fig_path
+        best_pcm_name, fig_path_finned,
+        scenario_label="PCM with Finned Enclosure Performance"
     )
 
     return rows, best_pcm_name, best_energy, e_no_pcm
@@ -102,13 +139,19 @@ def main():
         improvements.append([city_name, best_pcm, e_base, e_best, delta_E])
 
     # Summary table
-    df_summary = pd.DataFrame(all_rows, columns=['City', 'Scenario', 'Max Temp (°C)', 'Daily Yield (kWh/m²)'])
+    df_summary = pd.DataFrame(
+        all_rows,
+        columns=['City', 'Scenario', 'Max Temp (°C)', 'Daily Yield (kWh/m²)']
+    )
     summary_path = os.path.join(tables_dir, 'summary_results.csv')
     df_summary.to_csv(summary_path, index=False)
     print(f"\nSummary table saved: {summary_path}")
 
     # Improvement table
-    df_imp = pd.DataFrame(improvements, columns=['City', 'Best PCM', 'Base Energy', 'Best Energy', 'Improvement (%)'])
+    df_imp = pd.DataFrame(
+        improvements,
+        columns=['City', 'Best PCM', 'Base Energy', 'Best Energy', 'Improvement (%)']
+    )
     imp_path = os.path.join(tables_dir, 'improvement_summary.csv')
     df_imp.to_csv(imp_path, index=False)
     print(f"Improvement table saved: {imp_path}")
